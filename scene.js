@@ -10,7 +10,7 @@ function roundedBox(w,h,d){const r=Math.min(w,h)*.07,s=new T.Shape();s.moveTo(-w
 function halfRing(radius,inner){const s=new T.Shape();s.moveTo(0,radius);s.absarc(0,0,radius,Math.PI/2,-Math.PI/2,true);s.lineTo(0,-inner);s.absarc(0,0,inner,-Math.PI/2,Math.PI/2,false);s.closePath();return extrude(s,.72,.065);}
 function arch(){const s=new T.Shape();s.moveTo(-.8,-1);s.lineTo(-.8,.2);s.absarc(0,.2,.8,Math.PI,0,true);s.lineTo(.8,-1);s.lineTo(.38,-1);s.lineTo(.38,.2);s.absarc(0,.2,.38,0,Math.PI,false);s.lineTo(-.38,-1);s.closePath();return extrude(s,.55,.055);}
 function steps(){const s=new T.Shape();s.moveTo(-.8,-.9);s.lineTo(.8,-.9);s.lineTo(.8,-.3);s.lineTo(.25,-.3);s.lineTo(.25,.3);s.lineTo(-.28,.3);s.lineTo(-.28,.9);s.lineTo(-.8,.9);s.closePath();return extrude(s,.8,.035);}
-export function sculpture(){const root=new T.Group(),parts=[];const put=(g,color,pos,rot=[0,0,0],drift=[0,0,0])=>{const m=add(root,g,color,pos,rot);m.userData={home:m.position.clone(),rotation:m.rotation.clone(),drift:new T.Vector3(...drift),color:new T.Color(color),kick:0,velocity:0,offset:0,index:parts.length};parts.push(m);return m;};
+export function sculpture(){const root=new T.Group(),parts=[];const put=(g,color,pos,rot=[0,0,0],drift=[0,0,0])=>{const m=add(root,g,color,pos,rot);m.userData={home:m.position.clone(),rotation:m.rotation.clone(),drift:new T.Vector3(...drift),color:new T.Color(color),kick:0,velocity:0,offset:0,hx:0,hy:0,hr:0,hvx:0,hvy:0,hvr:0,wasHovered:false,index:parts.length};parts.push(m);return m;};
 const base=add(root,new T.CylinderGeometry(3.05,3.05,.4,112,1),palette.cream,[0,-2.05,0]);base.userData.base=true;
 put(roundedBox(.62,3.6,.8),palette.coral,[-2.05,-.08,0],[0,0,-.34],[-3.4,2.4,-.4]);
 put(roundedBox(.62,3.6,.8),palette.coral,[-.88,-.08,.02],[0,0,.34],[2.9,3,-.2]);
@@ -39,8 +39,18 @@ for(const [selector,w,ad]of interactionSlots){const slot=document.querySelector(
 function pick(x,y,w,ad,slot){const rect=slot.getBoundingClientRect();pointer.set((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1);raycaster.setFromCamera(pointer,w.camera);const hit=raycaster.intersectObjects(ad.userData.parts,false)[0];return hit?.object;}
 function resetPart(m){const u=m.userData;m.position.copy(u.home);m.rotation.copy(u.rotation);m.scale.setScalar(1);m.material.color.copy(u.color);}
 function bounce(m,dt){const u=m.userData;u.velocity+=(-90*u.offset-9*u.velocity)*dt;u.offset+=u.velocity*dt;m.position.y+=u.offset;m.rotation.z+=u.offset*.3;const squash=clamp(u.offset*.1,-.09,.09);m.scale.set(1-squash,1+squash,1-squash*.5);}
-return {worlds,hero,process,contact,heroAD,processAD,contactAD,serviceModels,ready:true,poke(){heroAD.userData.parts.forEach((m,i)=>m.userData.velocity=5+i*.14);targetYaw+=Math.PI*2;},update({time,dt,story,handoff=0,phase,reduced,pointerX,pointerY}){yaw=mix(yaw,targetYaw,.08);pitch=mix(pitch,targetPitch,.08);const t=reduced?0:time;const heroVisible=hero.host.getBoundingClientRect().bottom>0&&hero.host.getBoundingClientRect().top<innerHeight;
-if(heroVisible){hero.clear();const explosion=smooth(.25,.66,story);const rect=slotRect(hero,document.querySelector('#hero-model'));heroAD.rotation.set(pitch*(1-explosion),yaw*(1-explosion)+explosion*.5,0);heroAD.position.set(0,0,0);heroAD.scale.setScalar(mix(1,.74,explosion));heroAD.userData.base.position.set(0,-2.05-explosion*7,0);heroAD.userData.base.scale.setScalar(1);heroAD.userData.parts.forEach((m,i)=>{resetPart(m);const u=m.userData;m.position.addScaledVector(u.drift,explosion);m.position.z+=Math.sin(i*2.1)*explosion*1.3;const rot=explosion*(i%2?1:-1);m.rotation.x+=rot*.8;m.rotation.y+=rot*1.4;m.rotation.z+=rot*.5;if(!reduced){m.position.y+=Math.sin(t*.8+i)*.03*(i>10?2:1);m.rotation.y+=Math.sin(t*.35+i)*.015;}bounce(m,dt);});
+return {worlds,hero,process,contact,heroAD,processAD,contactAD,serviceModels,ready:true,poke(){heroAD.userData.parts.forEach((m,i)=>m.userData.velocity=5+i*.14);targetYaw+=Math.PI*2;},update({time,dt,story,handoff=0,phase,reduced,pointerX,pointerY,pointerActive=false,intro=1,serviceMotion=[]}){yaw=mix(yaw,targetYaw,.08);pitch=mix(pitch,targetPitch,.08);const t=reduced?0:time;const heroVisible=hero.host.getBoundingClientRect().bottom>0&&hero.host.getBoundingClientRect().top<innerHeight;
+if(heroVisible){hero.clear();const explosion=smooth(.25,.66,story);const rect=slotRect(hero,document.querySelector('#hero-model'));const slotElement=document.querySelector('#hero-model'),screenRect=slotElement.getBoundingClientRect();const canHover=pointerActive&&!reduced&&!dragging&&story<.20&&intro>.97;const hovered=canHover?pick(pointerX,pointerY,hero,heroAD,slotElement):null;const leanX=canHover?clamp((pointerX-screenRect.left)/screenRect.width-.5,-.5,.5)*.045:0,leanY=canHover?clamp((pointerY-screenRect.top)/screenRect.height-.5,-.5,.5)*.035:0;heroAD.userData.leanX=mix(heroAD.userData.leanX||0,leanX,1-Math.exp(-dt*9));heroAD.userData.leanY=mix(heroAD.userData.leanY||0,leanY,1-Math.exp(-dt*9));heroAD.rotation.set((pitch+heroAD.userData.leanY)*(1-explosion),(yaw+heroAD.userData.leanX)*(1-explosion)+explosion*.5,0);heroAD.position.set(0,0,0);heroAD.scale.setScalar(mix(1,.74,explosion));heroAD.userData.base.position.set(0,-2.05-explosion*7,0);heroAD.userData.base.scale.setScalar(1);heroAD.userData.parts.forEach((m,i)=>{resetPart(m);const u=m.userData;m.position.addScaledVector(u.drift,explosion);m.position.z+=Math.sin(i*2.1)*explosion*1.3;const rot=explosion*(i%2?1:-1);m.rotation.x+=rot*.8;m.rotation.y+=rot*1.4;m.rotation.z+=rot*.5;if(!reduced){m.position.y+=Math.sin(t*.8+i)*.03*(i>10?2:1);m.rotation.y+=Math.sin(t*.35+i)*.015;}bounce(m,dt);
+const hot=hovered===m;
+if(hot&&!u.wasHovered)u.velocity=Math.min(u.velocity+.65,1.1);
+u.wasHovered=hot;
+const sx=hot?clamp((pointerX-screenRect.left)/screenRect.width-.5,-.5,.5)*.10:0,sy=hot?.035:0,sr=hot?clamp((pointerX-screenRect.left)/screenRect.width-.5,-.5,.5)*.035:0;
+for(const [value,velocity,target]of [['hx','hvx',sx],['hy','hvy',sy],['hr','hvr',sr]]){u[velocity]+=(125*(target-u[value])-13*u[velocity])*dt;u[value]+=u[velocity]*dt;}
+m.position.x+=u.hx*(1-explosion);m.position.y+=u.hy*(1-explosion);m.rotation.z+=u.hr*(1-explosion);
+// Staggered, damped landing on the pedestal during the entry reveal.
+if(intro<1&&explosion<.02){const drop=clamp((intro-.06-i*.019)/.54),settled=1-Math.exp(-6.5*drop)*Math.cos(drop*8.5);m.position.y+=(1-settled)*(3.2+(i%4)*.7);m.rotation.z+=(1-settled)*(i%2?-.11:.11);m.scale.multiplyScalar(smooth(0,.12,drop));}
+});
+if(intro<1&&explosion<.02){const baseEnter=smooth(0,.32,intro);heroAD.userData.base.position.y-=.6*(1-baseEnter);heroAD.userData.base.scale.set(baseEnter,baseEnter,baseEnter);}
 // Keep the very same meshes alive as they travel into the service cards.
 if(handoff>0){
  const camera=hero.camera,w=rect.width,h=rect.height;
@@ -57,11 +67,12 @@ if(handoff>0){
   const ray=new T.Raycaster();ray.setFromCamera(new T.Vector2(nx,ny),camera);const target=new T.Vector3();ray.ray.intersectPlane(eyePlane,target);heroAD.worldToLocal(target);
   const settle=smooth(.04+serviceIndex*.055,.78+serviceIndex*.055,handoff);
   m.position.lerp(target,settle);
-  const rotation=new T.Euler(Math.sin(t*.6+serviceIndex)*.08,t*.22+serviceIndex*.7,Math.sin(t*.4+serviceIndex)*.06);
+  const motion=serviceMotion[serviceIndex]||{hover:0,x:0,y:0};
+  const rotation=new T.Euler(Math.sin(t*.6+serviceIndex)*.08-motion.y*.24,Math.sin(t*.28+serviceIndex)*.32+serviceIndex*.32+motion.x*.4,Math.sin(t*.4+serviceIndex)*.06-motion.x*.12);
   const targetQuaternion=parentInverse.clone().multiply(camera.quaternion).multiply(new T.Quaternion().setFromEuler(rotation));
   m.quaternion.slerp(targetQuaternion,settle);
   const targetScale=geometryRatios[serviceIndex]*(b.height/h)*(viewHeight/(2*Math.tan(T.MathUtils.degToRad(17))*4.5))/heroAD.scale.x;
-  m.scale.lerp(new T.Vector3().setScalar(targetScale),settle);
+  m.scale.lerp(new T.Vector3().setScalar(targetScale*(1+motion.hover*.065)),settle);
  });
 }else{heroAD.userData.base.visible=true;hero.shadow.visible=true;}
 hero.draw(rect,heroAD);}
